@@ -1,10 +1,15 @@
-name: Go
+name: CI
 
 on:
   push:
     branches: ["main"]
+    tags:
+      - "v*"
   pull_request:
     branches: ["main"]
+
+permissions:
+  contents: write
 
 env:
   GO_VERSION: "1.21"
@@ -21,18 +26,22 @@ jobs:
           - os-name: Linux-x86_64
             runs-on: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            binary: mzworker-linux-amd64
 
           - os-name: Linux-aarch64
             runs-on: ubuntu-latest
             target: aarch64-unknown-linux-musl
+            binary: mzworker-linux-arm64
 
           - os-name: macOS-x86_64
             runs-on: macos-latest
             target: x86_64-apple-darwin
+            binary: mzworker-darwin-amd64
 
           - os-name: Windows-x86_64
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
+            binary: mzworker-windows-amd64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -66,14 +75,38 @@ jobs:
       - name: Generate protobuf code
         run: make gen
 
-      - name: Build
-        run: go build -o bin/mzworker .
-
       - name: Test
         run: go test -v ./...
 
-      - name: Upload binary
+      - name: Build
+        run: go build -o ${{ matrix.platform.binary }} .
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mzworker-${{ matrix.platform.target }}
-          path: bin/mzworker
+          name: ${{ matrix.platform.binary }}
+          path: ${{ matrix.platform.binary }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/mzworker-linux-amd64/mzworker-linux-amd64
+            artifacts/mzworker-linux-arm64/mzworker-linux-arm64
+            artifacts/mzworker-darwin-amd64/mzworker-darwin-amd64
+            artifacts/mzworker-windows-amd64.exe/mzworker-windows-amd64.exe
