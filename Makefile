@@ -1,7 +1,7 @@
 APP_NAME := mzworker
 BIN_DIR := bin
 
-.PHONY: all gen build test lint clean cross snapshot
+.PHONY: all gen build test lint clean
 
 all: build
 
@@ -21,6 +21,3 @@ lint:
 
 clean:
 	rm -rf $(BIN_DIR) dist
-
-snapshot:
-	goreleaser build --snapshot --clean
