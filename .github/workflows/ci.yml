@@ -36,7 +36,12 @@ jobs:
           - os-name: macOS-x86_64
             runs-on: macos-latest
             target: x86_64-apple-darwin
-            binary: mzworker-darwin-amd64
+            binary: mzworker-macos-amd64
+
+          - os-name: macOS-arm64
+            runs-on: macos-latest
+            target: aarch64-apple-darwin
+            binary: mzworker-macos-arm64
 
           - os-name: Windows-x86_64
             runs-on: windows-latest
@@ -108,5 +113,6 @@ jobs:
           files: |
             artifacts/mzworker-linux-amd64/mzworker-linux-amd64
             artifacts/mzworker-linux-arm64/mzworker-linux-arm64
-            artifacts/mzworker-darwin-amd64/mzworker-darwin-amd64
+            artifacts/mzworker-macos-amd64/mzworker-macos-amd64
+            artifacts/mzworker-macos-arm64/mzworker-macos-arm64
             artifacts/mzworker-windows-amd64.exe/mzworker-windows-amd64.exe
