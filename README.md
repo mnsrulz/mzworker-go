@@ -1,51 +1,47 @@
 # mzworker-go
 
-gRPC server for querying DuckDB with SQL.
+CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.
 
-## Prerequisites
-
-- Go 1.21+
-- protoc (Protocol Buffers compiler)
-- protoc-gen-go and protoc-gen-go-grpc
-
-## Setup
+## Usage
 
 ```bash
-# Install protobuf tools
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+# Execute a query (default JSON output)
+mzworker-go "SELECT * FROM trades LIMIT 10"
 
-# Generate protobuf code
-make gen
+# Explicit query subcommand
+mzworker-go query "SELECT * FROM trades LIMIT 10"
 
-# Build
-make build
+# Table output
+mzworker-go "SELECT * FROM trades LIMIT 10" --format table
 
-# Run
-./bin/mzworker
+# Raw output (nested columns/rows)
+mzworker-go "SELECT * FROM trades LIMIT 10" --format raw
+
+# Custom row limit
+mzworker-go "SELECT * FROM trades" --limit 500
+
+# Pipe SQL from stdin
+echo "SELECT 42 AS answer" | mzworker-go
+
+# AMQP daemon mode
+mzworker-go serve
 ```
 
-## Environment Variables
+## Build
 
-- `LISTEN_ADDR` - Listen address (default: `0.0.0.0:50051`)
-- `DATA_DIR` - Data directory path (default: `data/options_data`)
+```bash
+make build
+# Binary at bin/mzworker
+```
 
 ## Development
 
 ```bash
-# Run tests
 make test
-
-# Run linter
 make lint
-
-# Cross-compile for all platforms
-make cross
 ```
 
-## Docker
+## Environment Variables
 
-```bash
-docker build -t mzworker .
-docker run -p 50051:50051 -v /path/to/data:/data mzworker
-```
+- `AMQP_URL` — AMQP broker URL (for `serve` mode)
+- `AMQP_REQUEST_QUEUE` — AMQP queue name (for `serve` mode)

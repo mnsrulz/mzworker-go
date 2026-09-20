@@ -36,11 +36,11 @@ jobs:
             binary: mzworker-linux-arm64
             cc: aarch64-linux-gnu-gcc
 
-          - name: macos-amd64
-            runs-on: macos-13
-            goos: darwin
-            goarch: amd64
-            binary: mzworker-macos-amd64
+          # - name: macos-amd64
+          #   runs-on: macos-13
+          #   goos: darwin
+          #   goarch: amd64
+          #   binary: mzworker-macos-amd64
 
           - name: macos-arm64
             runs-on: macos-latest
