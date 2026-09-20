@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 env:
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.27.1"
 
 jobs:
   build:
@@ -62,27 +62,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Install protoc (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update && sudo apt-get install -y protobuf-compiler
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-      - name: Install protoc (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install protobuf
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-      - name: Install protoc (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install protoc -y
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
       - name: Install cross-compiler (linux-arm64)
         if: matrix.name == 'linux-arm64'
         run: |
@@ -91,9 +70,6 @@ jobs:
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             libc6-dev-arm64-cross
-
-      - name: Generate protobuf code
-        run: make gen
 
       - name: Test
         run: go test -v ./...
