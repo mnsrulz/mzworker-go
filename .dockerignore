@@ -4,4 +4,3 @@ openspec
 *.test
 *.prof
 *.out
-mzworker-*
