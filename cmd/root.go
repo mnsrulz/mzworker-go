@@ -15,11 +15,14 @@ import (
 	"github.com/mnsrulz/mzworker-go/query"
 )
 
+var Version = "dev"
+
 var RootCmd = &cobra.Command{
-	Use:   "mzworker-go",
-	Short: "CLI tool for querying DuckDB with options data",
-	Long:  "CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.",
-	RunE:  rootRunE,
+	Use:     "mzworker-go",
+	Version: Version,
+	Short:   "CLI tool for querying DuckDB with options data",
+	Long:    "CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.",
+	RunE:    rootRunE,
 }
 
 func init() {
@@ -35,6 +38,7 @@ func rootRunE(cmd *cobra.Command, args []string) error {
 }
 
 func Execute() error {
+	RootCmd.Version = Version
 	return RootCmd.Execute()
 }
 

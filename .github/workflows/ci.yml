@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: ["main"]
-    tags:
-      - "v*"
   pull_request:
     branches: ["main"]
 
@@ -15,8 +13,40 @@ env:
   GO_VERSION: "1.27.1"
 
 jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        run: |
+          DESC=$(git describe --tags --always 2>/dev/null || echo "none")
+          if [[ "$DESC" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([0-9]+)-g([a-f0-9]+)$ ]]; then
+            MAJOR=${BASH_REMATCH[1]}
+            MINOR=${BASH_REMATCH[2]}
+            PATCH=$(( ${BASH_REMATCH[3]} + 1 ))
+            HEIGHT=${BASH_REMATCH[4]}
+            HASH=${BASH_REMATCH[5]}
+            echo "version=v${MAJOR}.${MINOR}.${PATCH}-preview.${HEIGHT}+${HASH}" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=${DESC}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Show version
+        run: echo "Version: ${{ steps.version.outputs.version }} (prerelease: ${{ steps.version.outputs.prerelease }})"
+
   build:
     name: Build ${{ matrix.name }}
+    needs: version
     runs-on: ${{ matrix.runs-on }}
 
     strategy:
@@ -35,12 +65,6 @@ jobs:
             goarch: arm64
             binary: mzworker-linux-arm64
             cc: aarch64-linux-gnu-gcc
-
-          # - name: macos-amd64
-          #   runs-on: macos-13
-          #   goos: darwin
-          #   goarch: amd64
-          #   binary: mzworker-macos-amd64
 
           - name: macos-arm64
             runs-on: macos-latest
@@ -75,7 +99,7 @@ jobs:
         run: go test -v ./...
 
       - name: Build
-        run: go build -o ${{ matrix.binary }} .
+        run: go build -ldflags "-X main.version=${{ needs.version.outputs.version }}" -o ${{ matrix.binary }} .
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -90,9 +114,8 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - uses: actions/checkout@v4
@@ -105,10 +128,12 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.version }}
+          name: ${{ needs.version.outputs.version }}
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
           generate_release_notes: true
           files: |
             artifacts/mzworker-linux-amd64/mzworker-linux-amd64
             artifacts/mzworker-linux-arm64/mzworker-linux-arm64
-            artifacts/mzworker-macos-amd64/mzworker-macos-amd64
             artifacts/mzworker-macos-arm64/mzworker-macos-arm64
             artifacts/mzworker-windows-amd64.exe/mzworker-windows-amd64.exe
