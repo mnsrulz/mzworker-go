@@ -1,21 +1,19 @@
 FROM debian:bookworm-slim
 
-RUN echo "**** Install Dependencies ****" && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y \
         ca-certificates \
         fuse3 \
         tzdata \
         unzip && \
-    echo "Install rclone" && \
-    curl -fsSL "https://downloads.rclone.org/v1.72.0/rclone-v1.72.0-linux-amd64.zip" -o /tmp/rclone.zip && \
-    unzip /tmp/rclone.zip -d /tmp && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD https://downloads.rclone.org/v1.72.0/rclone-v1.72.0-linux-amd64.zip /tmp/rclone.zip
+RUN unzip /tmp/rclone.zip -d /tmp && \
     cp /tmp/rclone-*/rclone /usr/bin/rclone && \
     chmod +x /usr/bin/rclone && \
     rm -rf /tmp/rclone* && \
-    echo "Enable user_allow_other in fuse" && \
-    echo "user_allow_other" >> /etc/fuse.conf && \
-    rm -rf /var/lib/apt/lists/*
+    echo "user_allow_other" >> /etc/fuse.conf
 
 COPY mzworker-linux-amd64 /usr/local/bin/mzworker
 COPY entrypoint.sh /entrypoint.sh
