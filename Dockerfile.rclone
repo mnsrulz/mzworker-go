@@ -10,6 +10,6 @@ RUN echo "**** Install Dependencies ****" && \
 
 COPY mzworker-linux-amd64 /usr/local/bin/mzworker
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /usr/local/bin/mzworker /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
