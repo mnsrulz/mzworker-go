@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 mkdir -p /data
 mkdir -p /cache
@@ -11,7 +11,7 @@ rclone mount --allow-non-empty --allow-other --read-only --vfs-read-chunk-size=4
     --vfs-read-chunk-size-limit=16M --vfs-cache-mode=full --buffer-size=256K --no-checksum \
     --cache-dir=/cache --vfs-cache-max-size=512M "${RCLONE_REMOTE}": /data --config "${RCLONE_CONFIG}" &
 
-while ! mountpoint -q /data; do
+while ! grep -q ' /data ' /proc/mounts; do
     echo "Waiting for Rclone mount..."
     sleep 1
 done
