@@ -1,0 +1,7 @@
+.git
+openspec
+*.exe
+*.test
+*.prof
+*.out
+mzworker-*
