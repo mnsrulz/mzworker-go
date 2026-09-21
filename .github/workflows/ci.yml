@@ -34,7 +34,7 @@ jobs:
             PATCH=$(( ${BASH_REMATCH[3]} + 1 ))
             HEIGHT=${BASH_REMATCH[4]}
             HASH=${BASH_REMATCH[5]}
-            echo "version=v${MAJOR}.${MINOR}.${PATCH}-preview.${HEIGHT}+${HASH}" >> $GITHUB_OUTPUT
+            echo "version=v${MAJOR}.${MINOR}.${PATCH}-preview.${HEIGHT}-${HASH}" >> $GITHUB_OUTPUT
             echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "version=${DESC}" >> $GITHUB_OUTPUT
@@ -133,6 +133,7 @@ jobs:
           tag_name: ${{ needs.version.outputs.version }}
           name: ${{ needs.version.outputs.version }}
           prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.version.outputs.prerelease == 'false' }}
           generate_release_notes: true
           files: |
             artifacts/mzworker-linux-amd64/mzworker-linux-amd64
