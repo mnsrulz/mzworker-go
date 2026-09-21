@@ -1,6 +1,6 @@
 FROM rclone/rclone:v1.72-stable AS rclone
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 COPY --from=rclone /usr/local/bin/rclone /usr/bin/rclone
 
