@@ -6,9 +6,13 @@ RUN echo "**** Install Dependencies ****" && \
         ca-certificates \
         fuse3 \
         tzdata \
-        curl && \
+        unzip && \
     echo "Install rclone" && \
-    curl -fsSL https://rclone.org/install.sh | bash && \
+    curl -fsSL "https://downloads.rclone.org/current/rclone-current-linux-amd64.zip" -o /tmp/rclone.zip && \
+    unzip /tmp/rclone.zip -d /tmp && \
+    cp /tmp/rclone-*/rclone /usr/bin/rclone && \
+    chmod +x /usr/bin/rclone && \
+    rm -rf /tmp/rclone* && \
     echo "Enable user_allow_other in fuse" && \
     echo "user_allow_other" >> /etc/fuse.conf && \
     rm -rf /var/lib/apt/lists/*
