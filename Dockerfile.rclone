@@ -2,7 +2,7 @@ FROM rclone/rclone:v1.72-stable AS rclone
 
 FROM debian:bookworm-slim
 
-COPY --from=rclone /usr/bin/rclone /usr/bin/rclone
+COPY --from=rclone /usr/local/bin/rclone /usr/bin/rclone
 
 RUN apt-get update && \
     apt-get install -y ca-certificates fuse3 tzdata && \
