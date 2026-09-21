@@ -27,19 +27,17 @@ jobs:
 
       - name: Compute version
         id: version
+        shell: bash
         run: |
-          DESC=$(git describe --tags --always 2>/dev/null || echo "none")
-          if [[ "$DESC" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([0-9]+)-g([a-f0-9]+)$ ]]; then
-            MAJOR=${BASH_REMATCH[1]}
-            MINOR=${BASH_REMATCH[2]}
-            PATCH=$(( ${BASH_REMATCH[3]} + 1 ))
-            HEIGHT=${BASH_REMATCH[4]}
-            HASH=${BASH_REMATCH[5]}
-            echo "version=v${MAJOR}.${MINOR}.${PATCH}-preview.${HEIGHT}-${HASH}" >> $GITHUB_OUTPUT
-            echo "prerelease=true" >> $GITHUB_OUTPUT
+          TAG=$(git describe --tags --abbrev=0)
+          HASH=$(git rev-parse --short HEAD)
+
+          if [[ "$(git rev-parse "$TAG")" == "$(git rev-parse HEAD)" ]]; then
+            VERSION="$TAG"
+            PRERELEASE=false
           else
-            echo "version=${DESC}" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
+            VERSION="${TAG}-${HASH}"
+            PRERELEASE=true
           fi
 
       - name: Show version
