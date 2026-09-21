@@ -42,7 +42,9 @@ jobs:
           fi
 
       - name: Show version
-        run: echo "Version: ${{ steps.version.outputs.version }} (prerelease: ${{ steps.version.outputs.prerelease }})"
+        run: |
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "Prerelease: ${{ steps.version.outputs.prerelease }}"
 
   build:
     name: Build ${{ matrix.name }}
