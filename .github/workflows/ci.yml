@@ -40,6 +40,9 @@ jobs:
             PRERELEASE=true
           fi
 
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
       - name: Show version
         run: |
           echo "Version: ${{ steps.version.outputs.version }}"
