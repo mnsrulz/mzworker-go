@@ -28,11 +28,14 @@ jobs:
 
       - name: Calculate version
         id: version
+        shell: bash
         run: |
-          VERSION=$(git describe --tags --long --always)
+          VERSION=$(git describe --tags --long --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-g*" --always 2>/dev/null || git describe --tags --long --always)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # derive prerelease: if version contains '-' after tag it's a pre-release
-          if [[ "$VERSION" == *"-"* ]]; then
+          # derive prerelease: if version contains '-' after tag it's a pre-release (ignore -0-g exact tag)
+          if [[ "$VERSION" == *"-0-g"* ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" == *"-"* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
