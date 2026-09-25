@@ -9,7 +9,8 @@ set -e
 REPO="mnsrulz/mzworker-go"
 BIN="mzworker-go"
 VERSION=""
-PREFIX="/usr/local/bin"
+PREFIX=""
+# default prefix: /usr/local/bin if writable/root else ~/.local/bin
 
 usage() {
   cat <<EOF
@@ -17,13 +18,14 @@ Usage: $0 [--version <tag>|latest] [--prefix <dir>]
 
 Options:
   --version   GitHub tag (e.g., v0.3.0) or latest (default: latest)
-  --prefix    Install directory (default: /usr/local/bin, fallback: ~/.local/bin)
+  --prefix    Install directory (default: ~/.local/bin without sudo, /usr/local/bin if writable/root)
   -h, --help  Show this help
 
 Examples:
   $0 --version v0.3.0
-  $0 --version latest --prefix ~/.local/bin
-  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash -s -- --version v0.3.0
+  $0 --version latest --prefix /usr/local/bin
+  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash -s -- --version v0.3.0 --prefix /usr/local/bin
 
 Supported: linux-amd64, linux-arm64, macos-arm64 (Apple Silicon). No darwin-amd64.
 EOF
@@ -122,34 +124,48 @@ download() {
     echo "curl or wget required" >&2; exit 1
   fi
   chmod +x "$DST"
-  # choose install dir
-  INSTALL_DIR="$PREFIX"
-  if [ ! -w "$INSTALL_DIR" ] 2>/dev/null; then
-    if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ -d "$HOME/.local/bin" ]; then
-      # try ~/.local/bin fallback if /usr/local/bin not writable and exists
-      :
+  # choose install dir: default ~/.local/bin without sudo, /usr/local/bin if prefix given or writable
+  if [ -z "$PREFIX" ]; then
+    if [ -w "/usr/local/bin" ] 2>/dev/null || [ "$(id -u 2>/dev/null || echo 1000)" = "0" ]; then
+      INSTALL_DIR="/usr/local/bin"
+    else
+      INSTALL_DIR="$HOME/.local/bin"
+      if [ "$INSTALL_DIR" = "/"".local/bin" ] || [ -z "$HOME" ]; then
+        INSTALL_DIR="$HOME/.local/bin"
+      fi
+      echo "No write permission for /usr/local/bin, installing to $INSTALL_DIR (no sudo)..."
     fi
-    # need sudo?
-    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-      :
-    elif [ ! -w "$INSTALL_DIR" ]; then
-      if mkdir -p "$INSTALL_DIR" 2>/dev/null && [ -w "$INSTALL_DIR" ]; then
-        :
-      else
-        echo "No write permission for $INSTALL_DIR. Try: $0 --prefix ~/.local/bin or sudo $0" >&2
+  else
+    INSTALL_DIR="$PREFIX"
+  fi
+  mkdir -p "$INSTALL_DIR" 2>/dev/null || {
+    if command -v sudo >/dev/null 2>&1; then
+      sudo mkdir -p "$INSTALL_DIR"
+    else
+      echo "Cannot create $INSTALL_DIR" >&2; exit 1
+    fi
+  }
+  if [ ! -w "$INSTALL_DIR" ] 2>/dev/null; then
+    if command -v sudo >/dev/null 2>&1; then
+      echo "Trying sudo for $INSTALL_DIR..."
+      sudo mkdir -p "$INSTALL_DIR" 2>/dev/null || true
+      if [ ! -w "$INSTALL_DIR" ]; then
+        echo "No write permission for $INSTALL_DIR. Try: $0 --prefix ~/.local/bin" >&2
         exit 1
       fi
+    else
+      echo "No write permission for $INSTALL_DIR. Try: $0 --prefix ~/.local/bin or sudo $0" >&2
+      exit 1
     fi
   fi
-  mkdir -p "$INSTALL_DIR" 2>/dev/null || sudo mkdir -p "$INSTALL_DIR"
   echo "Installing to $INSTALL_DIR/$BIN..."
-  if [ -w "$INSTALL_DIR" ]; then
+  if [ -w "$INSTALL_DIR" ] 2>/dev/null; then
     mv "$DST" "$INSTALL_DIR/$BIN"
   else
     sudo mv "$DST" "$INSTALL_DIR/$BIN"
   fi
   # compat symlink for old mzworker name
-  if [ -w "$INSTALL_DIR" ]; then
+  if [ -w "$INSTALL_DIR" ] 2>/dev/null; then
     ln -sf "$INSTALL_DIR/$BIN" "$INSTALL_DIR/mzworker" 2>/dev/null || true
   else
     sudo ln -sf "$INSTALL_DIR/$BIN" "$INSTALL_DIR/mzworker" 2>/dev/null || true
