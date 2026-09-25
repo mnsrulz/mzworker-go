@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	z "github.com/Oudwins/zog"
+	"github.com/mehdihadeli/go-mediatr"
 )
 
 type ExpectedMoveHandler struct {
@@ -22,12 +23,20 @@ var ExpectedMoveQuerySchema = z.Struct(z.Shape{
 	"ExpiryMode":   z.String().Required(),
 })
 
-func (h *ExpectedMoveHandler) Handle(ctx context.Context, req *ExpectedMoveQuery) (*QueryResponse, error) {
-	errs := ExpectedMoveQuerySchema.Validate(req)
-	if errs != nil {
-		return nil, fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+func (r *ExpectedMoveQuery) Validate() error {
+	if errs := ExpectedMoveQuerySchema.Validate(r); errs != nil {
+		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
 	}
+	return nil
+}
 
+func init() {
+	RegisterStruct("expected-move-query", func(d Deps) mediatr.RequestHandler[*ExpectedMoveQuery, *QueryResponse] {
+		return NewExpectedMoveHandler(d.Executor)
+	})
+}
+
+func (h *ExpectedMoveHandler) Handle(ctx context.Context, req *ExpectedMoveQuery) (*QueryResponse, error) {
 	sql := buildExpectedMoveSQL(req)
 
 	columns, rows, err := h.executor(ctx, req.Symbol, sql, 99999)

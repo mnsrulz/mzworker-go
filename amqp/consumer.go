@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/mehdihadeli/go-mediatr"
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/mnsrulz/mzworker-go/handler"
@@ -139,7 +138,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) {
 		return
 	}
 
-	resp, err := dispatchMediatr(context.Background(), request)
+	resp, err := handler.Dispatch(context.Background(), request)
 	if err != nil {
 		log.Printf("AMQP: dispatch failed: %v", err)
 		if msg.ReplyTo != "" {
@@ -181,25 +180,6 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) {
 
 	log.Printf("AMQP: response sent (%T)", resp)
 	_ = msg.Ack(false)
-}
-
-func dispatchMediatr(ctx context.Context, request any) (any, error) {
-	switch req := request.(type) {
-	case *handler.DynamicSQLQuery:
-		return mediatr.Send[*handler.DynamicSQLQuery, *handler.QueryResponse](ctx, req)
-	case *handler.OHLCQuery:
-		return mediatr.Send[*handler.OHLCQuery, *handler.QueryResponse](ctx, req)
-	case *handler.VolatilityQuery:
-		return mediatr.Send[*handler.VolatilityQuery, *handler.QueryResponse](ctx, req)
-	case *handler.OptionsStatQuery:
-		return mediatr.Send[*handler.OptionsStatQuery, *handler.QueryResponse](ctx, req)
-	case *handler.ExpectedMoveQuery:
-		return mediatr.Send[*handler.ExpectedMoveQuery, *handler.QueryResponse](ctx, req)
-	case *handler.PingRequest:
-		return mediatr.Send[*handler.PingRequest, *handler.PingResponse](ctx, req)
-	default:
-		return nil, fmt.Errorf("unknown request type: %T", request)
-	}
 }
 
 func toAmqpResponse(resp any) (amqpResponse[any], error) {

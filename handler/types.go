@@ -1,6 +1,10 @@
 package handler
 
-import z "github.com/Oudwins/zog"
+import (
+	"fmt"
+
+	z "github.com/Oudwins/zog"
+)
 
 type DynamicSQLQuery struct {
 	Symbol string `json:"symbol"`
@@ -54,3 +58,17 @@ var OHLCQuerySchema = z.Struct(z.Shape{
 	"To":     z.String().Optional(),
 	"Limit":  z.Int().Optional(),
 })
+
+func (r *DynamicSQLQuery) Validate() error {
+	if errs := DynamicSQLQuerySchema.Validate(r); errs != nil {
+		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+	}
+	return nil
+}
+
+func (r *OHLCQuery) Validate() error {
+	if errs := OHLCQuerySchema.Validate(r); errs != nil {
+		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+	}
+	return nil
+}

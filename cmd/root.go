@@ -1,18 +1,15 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/mehdihadeli/go-mediatr"
 	"github.com/spf13/cobra"
 
 	"github.com/mnsrulz/mzworker-go/handler"
-	"github.com/mnsrulz/mzworker-go/query"
 )
 
 var Version = "dev"
@@ -110,33 +107,5 @@ func formatValue(v interface{}) string {
 }
 
 func registerMediatr(dataDir string) error {
-	if err := mediatr.RegisterRequestPipelineBehaviors(&handler.ValidationBehavior{}); err != nil {
-		return fmt.Errorf("failed to register pipeline behavior: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(handler.NewQueryHandler(newInternalQueryExecutor(dataDir))); err != nil {
-		return fmt.Errorf("failed to register query handler: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(handler.NewOHLCHandler(newInternalQueryExecutor(dataDir))); err != nil {
-		return fmt.Errorf("failed to register OHLC handler: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(handler.NewVolatilityHandler(newInternalQueryExecutor(dataDir))); err != nil {
-		return fmt.Errorf("failed to register volatility handler: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(handler.NewOptionsStatHandler(newInternalQueryExecutor(dataDir))); err != nil {
-		return fmt.Errorf("failed to register options-stat handler: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(handler.NewExpectedMoveHandler(newInternalQueryExecutor(dataDir))); err != nil {
-		return fmt.Errorf("failed to register expected-move handler: %w", err)
-	}
-	if err := mediatr.RegisterRequestHandler(&handler.PingHandler{}); err != nil {
-		return fmt.Errorf("failed to register ping handler: %w", err)
-	}
-	return nil
-}
-
-func newInternalQueryExecutor(dataDir string) handler.QueryExecutor {
-	return func(ctx context.Context, symbol, sql string, limit int32) ([]string, [][]interface{}, error) {
-		executor := query.NewInternalQueryExecutor(symbol, dataDir)
-		return executor.Execute(ctx, sql, limit)
-	}
+	return handler.Init(dataDir)
 }

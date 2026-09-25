@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	z "github.com/Oudwins/zog"
+	"github.com/mehdihadeli/go-mediatr"
 )
 
 type OHLCHandler struct {
@@ -16,12 +16,13 @@ func NewOHLCHandler(executor QueryExecutor) *OHLCHandler {
 	return &OHLCHandler{executor: executor}
 }
 
-func (h *OHLCHandler) Handle(ctx context.Context, req *OHLCQuery) (*QueryResponse, error) {
-	errs := OHLCQuerySchema.Validate(req)
-	if errs != nil {
-		return nil, fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
-	}
+func init() {
+	RegisterStruct[OHLCQuery, *QueryResponse]("ohlc-query", func(d Deps) mediatr.RequestHandler[*OHLCQuery, *QueryResponse] {
+		return NewOHLCHandler(d.Executor)
+	})
+}
 
+func (h *OHLCHandler) Handle(ctx context.Context, req *OHLCQuery) (*QueryResponse, error) {
 	sql := buildOHLCQuery(req.Symbol, req.From, req.To)
 
 	limit := req.Limit

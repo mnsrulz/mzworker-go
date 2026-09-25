@@ -26,23 +26,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute version
+      - name: Calculate version
         id: version
-        shell: bash
         run: |
-          TAG=$(git describe --tags --abbrev=0)
-          HASH=$(git rev-parse --short HEAD)
-
-          if [[ "$(git rev-parse "$TAG")" == "$(git rev-parse HEAD)" ]]; then
-            VERSION="$TAG"
-            PRERELEASE=false
-          else
-            VERSION="${TAG}-${HASH}"
-            PRERELEASE=true
-          fi
-
+          VERSION=$(git describe --tags --long --always)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          # derive prerelease: if version contains '-' after tag it's a pre-release
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Show version
         run: |
@@ -85,6 +79,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -103,8 +99,19 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Calculate version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --long --always)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: go build -ldflags "-X main.version=${{ needs.version.outputs.version }}" -o ${{ matrix.binary }} .
+        run: |
+          go build \
+            -ldflags "-X main.Version=${{ steps.version.outputs.version }}" \
+            -o mzworker
+          # matrix build (kept for multi-arch release)
+          go build -ldflags "-X main.Version=${{ steps.version.outputs.version }}" -o ${{ matrix.binary }} .
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
