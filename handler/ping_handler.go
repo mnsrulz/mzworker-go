@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"time"
+
+	"github.com/mehdihadeli/go-mediatr"
 )
 
 type PingRequest struct{}
@@ -13,6 +15,14 @@ type PingResponse struct {
 }
 
 type PingHandler struct{}
+
+func (r *PingRequest) Validate() error { return nil }
+
+func init() {
+	RegisterStruct[PingRequest, *PingResponse]("ping", func(_ Deps) mediatr.RequestHandler[*PingRequest, *PingResponse] {
+		return &PingHandler{}
+	})
+}
 
 func (h *PingHandler) Handle(ctx context.Context, req *PingRequest) (*PingResponse, error) {
 	return &PingResponse{

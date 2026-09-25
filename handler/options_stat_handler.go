@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	z "github.com/Oudwins/zog"
+	"github.com/mehdihadeli/go-mediatr"
 )
 
 type OptionsStatHandler struct {
@@ -21,12 +22,20 @@ var OptionsStatQuerySchema = z.Struct(z.Shape{
 	"LookbackDays": z.Int().Required(),
 })
 
-func (h *OptionsStatHandler) Handle(ctx context.Context, req *OptionsStatQuery) (*QueryResponse, error) {
-	errs := OptionsStatQuerySchema.Validate(req)
-	if errs != nil {
-		return nil, fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+func (r *OptionsStatQuery) Validate() error {
+	if errs := OptionsStatQuerySchema.Validate(r); errs != nil {
+		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
 	}
+	return nil
+}
 
+func init() {
+	RegisterStruct[OptionsStatQuery, *QueryResponse]("options-stat-query", func(d Deps) mediatr.RequestHandler[*OptionsStatQuery, *QueryResponse] {
+		return NewOptionsStatHandler(d.Executor)
+	})
+}
+
+func (h *OptionsStatHandler) Handle(ctx context.Context, req *OptionsStatQuery) (*QueryResponse, error) {
 	sql := buildOptionsStatSQL(req)
 
 	columns, rows, err := h.executor(ctx, req.Symbol, sql, 99999)

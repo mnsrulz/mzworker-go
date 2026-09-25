@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	z "github.com/Oudwins/zog"
+	"github.com/mehdihadeli/go-mediatr"
 )
 
 type VolatilityHandler struct {
@@ -27,12 +28,20 @@ var VolatilityQuerySchema = z.Struct(z.Shape{
 	"Expiration":   z.String().Optional(),
 })
 
-func (h *VolatilityHandler) Handle(ctx context.Context, req *VolatilityQuery) (*QueryResponse, error) {
-	errs := VolatilityQuerySchema.Validate(req)
-	if errs != nil {
-		return nil, fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+func (r *VolatilityQuery) Validate() error {
+	if errs := VolatilityQuerySchema.Validate(r); errs != nil {
+		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
 	}
+	return nil
+}
 
+func init() {
+	RegisterStruct[VolatilityQuery, *QueryResponse]("volatility-query", func(d Deps) mediatr.RequestHandler[*VolatilityQuery, *QueryResponse] {
+		return NewVolatilityHandler(d.Executor)
+	})
+}
+
+func (h *VolatilityHandler) Handle(ctx context.Context, req *VolatilityQuery) (*QueryResponse, error) {
 	sql := h.buildSQL(req)
 
 	columns, rows, err := h.executor(ctx, req.Symbol, sql, 99999)
