@@ -1,4 +1,4 @@
-APP_NAME := mzworker
+APP_NAME := mzworker-go
 BIN_DIR := bin
 
 .PHONY: all build test lint clean

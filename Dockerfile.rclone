@@ -9,8 +9,8 @@ RUN apt-get update && \
     echo "user_allow_other" >> /etc/fuse.conf && \
     rm -rf /var/lib/apt/lists/*
 
-COPY mzworker-linux-amd64 /usr/local/bin/mzworker
+COPY mzworker-go-linux-amd64 /usr/local/bin/mzworker-go
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /usr/local/bin/mzworker /entrypoint.sh
+RUN chmod +x /usr/local/bin/mzworker-go /entrypoint.sh && ln -sf /usr/local/bin/mzworker-go /usr/local/bin/mzworker
 
 ENTRYPOINT ["/entrypoint.sh"]

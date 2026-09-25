@@ -18,4 +18,4 @@ done
 
 echo "Rclone mount is ready."
 
-exec mzworker serve "$@"
+exec mzworker-go serve "$@"
