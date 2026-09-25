@@ -27,11 +27,38 @@ echo "SELECT 42 AS answer" | mzworker-go
 mzworker-go serve
 ```
 
+## Install
+
+### Shell (macOS + Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mnsrulz/mzworker-go/main/install.sh | bash
+# specific version
+curl -fsSL https://raw.githubusercontent.com/mnsrulz/mzworker-go/main/install.sh | bash -s -- --version v0.3.0
+# custom prefix (no sudo)
+./install.sh --version v0.3.0 --prefix ~/.local/bin
+```
+
+Downloads `mzworker-go-<os>-<arch>` from Releases (`linux-amd64`, `linux-arm64`, `macos-arm64` Apple Silicon) and installs to `/usr/local/bin/mzworker-go` (compat symlink `mzworker`).
+
+### Go
+
+```bash
+go install github.com/mnsrulz/mzworker-go@latest
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/mnsrulz/mzworker-go:latest
+docker pull ghcr.io/mnsrulz/mzworker-go-rclone:latest
+```
+
 ## Build
 
 ```bash
 make build
-# Binary at bin/mzworker
+# Binary at bin/mzworker-go (compat symlink bin/mzworker)
 ```
 
 ## Development
