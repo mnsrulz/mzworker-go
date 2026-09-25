@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: ["main"]
+    tags: ["v*.*.*"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -30,6 +31,13 @@ jobs:
         id: version
         shell: bash
         run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "Tag push: $VERSION"
+            exit 0
+          fi
           VERSION=$(git describe --tags --long --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-g*" --always 2>/dev/null || git describe --tags --long --always)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # derive prerelease: if version contains '-' after tag it's a pre-release (ignore -0-g exact tag)
