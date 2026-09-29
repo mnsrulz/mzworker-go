@@ -33,6 +33,7 @@ func logBuildInfo() {
 	if gitSHA == "" {
 		gitSHA = "unknown"
 	}
+	log.Printf("Version: %s", Version)
 	log.Printf("App build time: %s", buildTime)
 	log.Printf("Git commit SHA: %s", gitSHA)
 }
