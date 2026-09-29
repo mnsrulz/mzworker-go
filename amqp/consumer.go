@@ -2,233 +2,130 @@ package amqp
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"sync"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-
-	"github.com/mnsrulz/mzworker-go/handler"
 )
 
+const defaultDrainTimeout = 30 * time.Second
+
 type Consumer struct {
-	conn        *amqp.Connection
-	channel     *amqp.Channel
-	queueName   string
-	concurrency int
-	sem         chan struct{}
+	queueName    string
+	concurrency  int
+	sess         session
+	sem          chan struct{}
+	drainTimeout time.Duration
+
+	cancel   context.CancelFunc
+	done     chan struct{}
+	handlers sync.WaitGroup
 }
 
-type amqpResponse[T any] struct {
-	Data  T      `json:"data,omitempty"`
-	Error string `json:"error,omitempty"`
-}
-
-type amqpQueryResponse struct {
-	Columns []string  `json:"columns"`
-	Rows    []amqpRow `json:"rows"`
-}
-
-type amqpRow struct {
-	Values []amqpValue `json:"values"`
-}
-
-type amqpValue struct {
-	StringVal *string  `json:"string_val,omitempty"`
-	DoubleVal *float64 `json:"double_val,omitempty"`
-	IntVal    *int64   `json:"int_val,omitempty"`
-	BoolVal   *bool    `json:"bool_val,omitempty"`
-}
-
+// NewConsumer validates input and dials the broker exactly once. There is no
+// dial retry: a failure here is returned so the application fails to boot.
+// All runtime reconnection is handled by the library's built-in recovery.
 func NewConsumer(amqpURL, queueName string, concurrency int) (*Consumer, error) {
+	if amqpURL == "" || queueName == "" {
+		return nil, errors.New("amqp URL and queue name are required")
+	}
 	if concurrency <= 0 {
 		concurrency = 5
 	}
-
-	conn, err := amqp.Dial(amqpURL)
+	amqp.SetLogger(log.Default())
+	sess, err := dialSession(amqpURL, queueName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to AMQP: %w", err)
 	}
-
-	ch, err := conn.Channel()
-	if err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("failed to open channel: %w", err)
-	}
-
-	q, err := ch.QueueDeclare(queueName, true, false, false, false, nil)
-	if err != nil {
-		_ = ch.Close()
-		_ = conn.Close()
-		return nil, fmt.Errorf("failed to declare queue: %w", err)
-	}
-
 	return &Consumer{
-		conn:        conn,
-		channel:     ch,
-		queueName:   q.Name,
-		concurrency: concurrency,
-		sem:         make(chan struct{}, concurrency),
+		queueName:    queueName,
+		concurrency:  concurrency,
+		sess:         sess,
+		sem:          make(chan struct{}, concurrency),
+		drainTimeout: defaultDrainTimeout,
 	}, nil
 }
 
 func (c *Consumer) Start(ctx context.Context) {
-	msgs, err := c.channel.Consume(c.queueName, "", false, false, false, false, nil)
-	if err != nil {
-		log.Fatalf("Failed to register AMQP consumer: %v", err)
-	}
-
-	log.Printf("AMQP consumer started on queue: %s (concurrency: %d)", c.queueName, c.concurrency)
-
+	runCtx, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+	c.done = make(chan struct{})
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg, ok := <-msgs:
-				if !ok {
-					return
-				}
-				c.sem <- struct{}{}
-				go func() {
-					defer func() { <-c.sem }()
-					c.handleMessage(msg)
-				}()
-			}
+		defer close(c.done)
+		log.Printf("AMQP consumer started on queue: %s (concurrency: %d)", c.queueName, c.concurrency)
+		reason := c.sessionLoop(runCtx)
+		c.drain()
+		c.sess.Close()
+		if reason != nil && runCtx.Err() == nil {
+			log.Fatalf("AMQP: connection closed terminally: %v", reason)
 		}
 	}()
 }
 
 func (c *Consumer) Stop() {
-	if c.channel != nil {
-		_ = c.channel.Close()
+	if c.cancel != nil {
+		c.cancel()
 	}
-	if c.conn != nil {
-		_ = c.conn.Close()
+	if c.done != nil {
+		<-c.done
 	}
 }
 
-func (c *Consumer) handleMessage(msg amqp.Delivery) {
-	var envelope struct {
-		RequestType string `json:"requestType"`
-	}
-	if err := json.Unmarshal(msg.Body, &envelope); err != nil {
-		log.Printf("AMQP: failed to parse envelope: %v", err)
-		if msg.ReplyTo != "" {
-			c.publishError(msg.ReplyTo, msg.CorrelationId, fmt.Sprintf("invalid JSON: %v", err))
-		}
-		_ = msg.Ack(false)
-		return
-	}
-
-	factory, ok := handler.GetRequestFactory(envelope.RequestType)
-	if !ok {
-		log.Printf("AMQP: unknown request type: %s", envelope.RequestType)
-		_ = msg.Ack(false)
-		return
-	}
-
-	request, err := factory(msg.Body)
+// sessionLoop consumes until ctx is cancelled (returns nil) or the connection
+// dies terminally (returns the reason; the caller fails the process).
+func (c *Consumer) sessionLoop(ctx context.Context) error {
+	sess := c.sess
+	msgs, err := sess.Consume(c.queueName)
 	if err != nil {
-		log.Printf("AMQP: failed to create request: %v", err)
-		if msg.ReplyTo != "" {
-			c.publishError(msg.ReplyTo, msg.CorrelationId, err.Error())
-		}
-		_ = msg.Ack(false)
-		return
+		return fmt.Errorf("failed to register AMQP consumer: %w", err)
 	}
+	states := sess.StateChanges()
 
-	resp, err := handler.Dispatch(context.Background(), request)
-	if err != nil {
-		log.Printf("AMQP: dispatch failed: %v", err)
-		if msg.ReplyTo != "" {
-			c.publishError(msg.ReplyTo, msg.CorrelationId, err.Error())
-		}
-		_ = msg.Ack(false)
-		return
-	}
-
-	if msg.ReplyTo == "" {
-		log.Printf("AMQP: no reply_to set, dropping response")
-		_ = msg.Ack(false)
-		return
-	}
-
-	amqpResp, err := toAmqpResponse(resp)
-	if err != nil {
-		log.Printf("AMQP: failed to convert response: %v", err)
-		_ = msg.Ack(false)
-		return
-	}
-	body, err := json.Marshal(amqpResp)
-	if err != nil {
-		log.Printf("AMQP: failed to marshal response: %v", err)
-		_ = msg.Ack(false)
-		return
-	}
-
-	err = c.channel.Publish("", msg.ReplyTo, false, false, amqp.Publishing{
-		ContentType:   "application/json",
-		CorrelationId: msg.CorrelationId,
-		Body:          body,
-	})
-	if err != nil {
-		log.Printf("AMQP: failed to publish response: %v", err)
-		_ = msg.Ack(false)
-		return
-	}
-
-	log.Printf("AMQP: response sent (%T)", resp)
-	_ = msg.Ack(false)
-}
-
-func toAmqpResponse(resp any) (amqpResponse[any], error) {
-	switch response := resp.(type) {
-	case *handler.QueryResponse:
-		queryResponse := amqpQueryResponse{
-			Columns: response.Columns,
-			Rows:    make([]amqpRow, len(response.Rows)),
-		}
-		for i, row := range response.Rows {
-			vals := make([]amqpValue, len(row))
-			for j, v := range row {
-				vals[j] = toAmqpValue(v)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case sc, ok := <-states:
+			if !ok {
+				return errors.New("connection state listener closed")
 			}
-			queryResponse.Rows[i] = amqpRow{Values: vals}
+			if sc.To == amqp.StateClosed {
+				if sc.Err != nil {
+					return fmt.Errorf("connection recovery terminated: %w", sc.Err)
+				}
+				return errors.New("connection closed")
+			}
+		case msg, ok := <-msgs:
+			if !ok {
+				return errors.New("delivery channel closed")
+			}
+			select {
+			case <-ctx.Done():
+				return nil
+			case c.sem <- struct{}{}:
+			}
+			c.handlers.Add(1)
+			go func(msg amqp.Delivery) {
+				defer c.handlers.Done()
+				defer func() { <-c.sem }()
+				c.handleMessage(sess, msg)
+			}(msg)
 		}
-		return amqpResponse[any]{Data: queryResponse}, nil
-	case *handler.PingResponse:
-		return amqpResponse[any]{Data: response}, nil
-	default:
-		return amqpResponse[any]{}, fmt.Errorf("unknown response type: %T", resp)
 	}
 }
 
-func (c *Consumer) publishError(replyTo, correlationId, errMsg string) {
-	resp := amqpResponse[any]{Error: errMsg}
-	body, _ := json.Marshal(resp)
-	_ = c.channel.Publish("", replyTo, false, false, amqp.Publishing{
-		ContentType:   "application/json",
-		CorrelationId: correlationId,
-		Body:          body,
-	})
-}
-
-func toAmqpValue(v interface{}) amqpValue {
-	if v == nil {
-		return amqpValue{}
-	}
-	switch val := v.(type) {
-	case string:
-		return amqpValue{StringVal: &val}
-	case float64:
-		return amqpValue{DoubleVal: &val}
-	case int64:
-		return amqpValue{IntVal: &val}
-	case bool:
-		return amqpValue{BoolVal: &val}
-	default:
-		s := fmt.Sprintf("%v", val)
-		return amqpValue{StringVal: &s}
+func (c *Consumer) drain() {
+	done := make(chan struct{})
+	go func() {
+		c.handlers.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(c.drainTimeout):
+		log.Printf("AMQP: timed out after %s waiting for in-flight handlers", c.drainTimeout)
 	}
 }
