@@ -24,7 +24,22 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 }
 
+func logBuildInfo() {
+	buildTime := os.Getenv("BUILD_TIME")
+	gitSHA := os.Getenv("GIT_SHA")
+	if buildTime == "" {
+		buildTime = "unknown"
+	}
+	if gitSHA == "" {
+		gitSHA = "unknown"
+	}
+	log.Printf("App build time: %s", buildTime)
+	log.Printf("Git commit SHA: %s", gitSHA)
+}
+
 func serveRunE(cmd *cobra.Command, args []string) error {
+	logBuildInfo()
+
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		return fmt.Errorf("DATA_DIR environment variable is required")
