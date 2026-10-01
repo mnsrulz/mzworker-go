@@ -23,7 +23,7 @@ func Init(dataDir string) error {
 	if initialized {
 		return nil
 	}
-	if err := mediatr.RegisterRequestPipelineBehaviors(&ValidationBehavior{}); err != nil {
+	if err := mediatr.RegisterRequestPipelineBehaviors(&TimingBehavior{}, &ValidationBehavior{}); err != nil {
 		// go-mediatr returns error if already registered; treat as non-fatal if already initialized
 		// but first call should succeed; ignore duplicate registration
 		if initialized {
