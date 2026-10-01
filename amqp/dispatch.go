@@ -1,6 +1,7 @@
 package amqp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,35 +13,76 @@ import (
 	"github.com/mnsrulz/mzworker-go/handler"
 )
 
-type amqpResponse[T any] struct {
-	Data  T      `json:"data,omitempty"`
-	Error string `json:"error,omitempty"`
+type replyEnvelope struct {
+	RequestId string `json:"requestId"`
+	HasError  bool   `json:"hasError"`
+	Value     any    `json:"value"`
 }
 
-type amqpQueryResponse struct {
-	Columns []string  `json:"columns"`
-	Rows    []amqpRow `json:"rows"`
+// columnarValue serializes as {"column": [v, v, ...], ...} preserving the
+// query's column order (encoding/json would sort plain map keys).
+type columnarValue struct {
+	keys []string
+	cols map[string][]any
 }
 
-type amqpRow struct {
-	Values []amqpValue `json:"values"`
+func newColumnarValue(columns []string, rows [][]any) columnarValue {
+	cols := make(map[string][]any, len(columns))
+	for _, name := range columns {
+		cols[name] = make([]any, 0, len(rows))
+	}
+	for _, row := range rows {
+		for j, cell := range row {
+			if j < len(columns) {
+				name := columns[j]
+				cols[name] = append(cols[name], toCellValue(cell))
+			}
+		}
+	}
+	return columnarValue{keys: columns, cols: cols}
 }
 
-type amqpValue struct {
-	StringVal *string  `json:"string_val,omitempty"`
-	DoubleVal *float64 `json:"double_val,omitempty"`
-	IntVal    *int64   `json:"int_val,omitempty"`
-	BoolVal   *bool    `json:"bool_val,omitempty"`
+func (c columnarValue) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, name := range c.keys {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		key, err := json.Marshal(name)
+		if err != nil {
+			return nil, err
+		}
+		val, err := json.Marshal(c.cols[name])
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(key)
+		buf.WriteByte(':')
+		buf.Write(val)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+func toCellValue(v any) any {
+	switch val := v.(type) {
+	case nil, string, float64, int64, bool:
+		return val
+	default:
+		return fmt.Sprintf("%v", val)
+	}
 }
 
 func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 	var envelope struct {
 		RequestType string `json:"requestType"`
+		RequestId   string `json:"requestId"`
 	}
 	if err := json.Unmarshal(msg.Body, &envelope); err != nil {
 		log.Printf("AMQP: failed to parse envelope: %v", err)
 		if msg.ReplyTo != "" {
-			c.publishError(sess, msg.ReplyTo, msg.CorrelationId, fmt.Sprintf("invalid JSON: %v", err))
+			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, "")
 		}
 		_ = msg.Ack(false)
 		return
@@ -49,6 +91,9 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 	factory, ok := handler.GetRequestFactory(envelope.RequestType)
 	if !ok {
 		log.Printf("AMQP: unknown request type: %s", envelope.RequestType)
+		if msg.ReplyTo != "" {
+			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
+		}
 		_ = msg.Ack(false)
 		return
 	}
@@ -57,7 +102,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 	if err != nil {
 		log.Printf("AMQP: failed to create request: %v", err)
 		if msg.ReplyTo != "" {
-			c.publishError(sess, msg.ReplyTo, msg.CorrelationId, err.Error())
+			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		}
 		_ = msg.Ack(false)
 		return
@@ -67,7 +112,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 	if err != nil {
 		log.Printf("AMQP: dispatch failed: %v", err)
 		if msg.ReplyTo != "" {
-			c.publishError(sess, msg.ReplyTo, msg.CorrelationId, err.Error())
+			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		}
 		_ = msg.Ack(false)
 		return
@@ -79,15 +124,17 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 		return
 	}
 
-	amqpResp, err := toAmqpResponse(resp)
+	amqpResp, err := toAmqpResponse(envelope.RequestId, resp)
 	if err != nil {
 		log.Printf("AMQP: failed to convert response: %v", err)
+		c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		_ = msg.Ack(false)
 		return
 	}
 	body, err := json.Marshal(amqpResp)
 	if err != nil {
 		log.Printf("AMQP: failed to marshal response: %v", err)
+		c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		_ = msg.Ack(false)
 		return
 	}
@@ -113,51 +160,29 @@ func (c *Consumer) publishReply(s session, replyTo, correlationID string, body [
 	})
 }
 
-func (c *Consumer) publishError(s session, replyTo, correlationId, errMsg string) {
-	resp := amqpResponse[any]{Error: errMsg}
-	body, _ := json.Marshal(resp)
-	if err := c.publishReply(s, replyTo, correlationId, body); err != nil {
+// publishErrorReply sends the reference consumer's failure shape:
+// {"requestId": "...", "hasError": true, "value": {}}.
+func (c *Consumer) publishErrorReply(s session, replyTo, correlationID, requestId string) {
+	body, err := json.Marshal(replyEnvelope{RequestId: requestId, HasError: true, Value: struct{}{}})
+	if err != nil {
+		log.Printf("AMQP: failed to marshal error reply: %v", err)
+		return
+	}
+	if err := c.publishReply(s, replyTo, correlationID, body); err != nil {
 		log.Printf("AMQP: failed to publish error response: %v", err)
 	}
 }
 
-func toAmqpResponse(resp any) (amqpResponse[any], error) {
+func toAmqpResponse(requestID string, resp any) (replyEnvelope, error) {
 	switch response := resp.(type) {
 	case *handler.QueryResponse:
-		queryResponse := amqpQueryResponse{
-			Columns: response.Columns,
-			Rows:    make([]amqpRow, len(response.Rows)),
-		}
-		for i, row := range response.Rows {
-			vals := make([]amqpValue, len(row))
-			for j, v := range row {
-				vals[j] = toAmqpValue(v)
-			}
-			queryResponse.Rows[i] = amqpRow{Values: vals}
-		}
-		return amqpResponse[any]{Data: queryResponse}, nil
+		return replyEnvelope{
+			RequestId: requestID,
+			Value:     newColumnarValue(response.Columns, response.Rows),
+		}, nil
 	case *handler.PingResponse:
-		return amqpResponse[any]{Data: response}, nil
+		return replyEnvelope{RequestId: requestID, Value: response}, nil
 	default:
-		return amqpResponse[any]{}, fmt.Errorf("unknown response type: %T", resp)
-	}
-}
-
-func toAmqpValue(v interface{}) amqpValue {
-	if v == nil {
-		return amqpValue{}
-	}
-	switch val := v.(type) {
-	case string:
-		return amqpValue{StringVal: &val}
-	case float64:
-		return amqpValue{DoubleVal: &val}
-	case int64:
-		return amqpValue{IntVal: &val}
-	case bool:
-		return amqpValue{BoolVal: &val}
-	default:
-		s := fmt.Sprintf("%v", val)
-		return amqpValue{StringVal: &s}
+		return replyEnvelope{}, fmt.Errorf("unknown response type: %T", resp)
 	}
 }

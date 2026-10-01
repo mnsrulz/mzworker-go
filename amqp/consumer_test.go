@@ -27,7 +27,7 @@ func TestPingAMQPRequestAndResponse(t *testing.T) {
 		t.Fatalf("expected *handler.PingRequest, got %T", request)
 	}
 
-	response, err := toAmqpResponse(&handler.PingResponse{
+	response, err := toAmqpResponse("req-1", &handler.PingResponse{
 		Message:    "pong",
 		ServerTime: "2026-09-18T23:11:05Z",
 	})
@@ -40,7 +40,7 @@ func TestPingAMQPRequestAndResponse(t *testing.T) {
 		t.Fatalf("failed to marshal ping response: %v", err)
 	}
 
-	const expected = `{"data":{"message":"pong","server_time":"2026-09-18T23:11:05Z"}}`
+	const expected = `{"requestId":"req-1","hasError":false,"value":{"message":"pong","server_time":"2026-09-18T23:11:05Z"}}`
 	if string(body) != expected {
 		t.Fatalf("unexpected response: %s", body)
 	}
@@ -324,6 +324,20 @@ func TestHandleMessageAcksWhenReplyPublishSucceeds(t *testing.T) {
 	if len(sess.published) != 1 {
 		t.Fatalf("expected 1 published reply, got %d", len(sess.published))
 	}
+
+	var env replyEnvelope
+	if err := json.Unmarshal(sess.published[0].Body, &env); err != nil {
+		t.Fatalf("failed to unmarshal reply envelope: %v", err)
+	}
+	if env.RequestId != "" {
+		t.Fatalf("expected empty requestId (body has none), got %q", env.RequestId)
+	}
+	if env.HasError {
+		t.Fatal("expected hasError=false on success")
+	}
+	if env.Value == nil {
+		t.Fatal("expected value to be present")
+	}
 }
 
 func TestHandleMessageNacksWhenNoSession(t *testing.T) {
@@ -339,5 +353,94 @@ func TestHandleMessageNacksWhenNoSession(t *testing.T) {
 	defer ack.mu.Unlock()
 	if ack.nacks != 1 || !ack.requeue {
 		t.Fatalf("expected requeue nack, got nacks=%d requeue=%v", ack.nacks, ack.requeue)
+	}
+}
+
+func TestToAmqpResponseColumnarExactJSON(t *testing.T) {
+	resp := &handler.QueryResponse{
+		Columns: []string{"dt", "last_close", "straddle_price", "expiry"},
+		Rows: [][]any{
+			{"2025-10-20", 336.02, 58.83, "2025-11-21"},
+			{"2025-10-27", nil, 59.1, "2025-11-21"},
+		},
+	}
+
+	envelope, err := toAmqpResponse("req-1", resp)
+	if err != nil {
+		t.Fatalf("toAmqpResponse: %v", err)
+	}
+	body, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	const want = `{"requestId":"req-1","hasError":false,"value":{"dt":["2025-10-20","2025-10-27"],"last_close":[336.02,null],"straddle_price":[58.83,59.1],"expiry":["2025-11-21","2025-11-21"]}}`
+	if string(body) != want {
+		t.Fatalf("unexpected columnar reply:\n got: %s\nwant: %s", body, want)
+	}
+}
+
+func TestHandleMessageRepliesErrorEnvelopeOnInvalidJSON(t *testing.T) {
+	sess := newFakeSession()
+	c := newTestConsumer(sess)
+
+	ack := &fakeAcknowledger{}
+	delivery := amqp.Delivery{
+		Acknowledger:  ack,
+		DeliveryTag:   1,
+		ReplyTo:       "reply.q",
+		CorrelationId: "corr-1",
+		Body:          []byte("not json"),
+	}
+	c.handleMessage(sess, delivery)
+
+	sess.mu.Lock()
+	body := string(sess.published[0].Body)
+	sess.mu.Unlock()
+	const want = `{"requestId":"","hasError":true,"value":{}}`
+	if body != want {
+		t.Fatalf("unexpected error reply: got %s, want %s", body, want)
+	}
+
+	ack.mu.Lock()
+	defer ack.mu.Unlock()
+	if ack.acks != 1 || ack.nacks != 0 {
+		t.Fatalf("expected 1 ack and 0 nacks, got %d acks and %d nacks", ack.acks, ack.nacks)
+	}
+}
+
+func TestHandleMessageEchoesRequestIdOnSuccess(t *testing.T) {
+	if err := handler.Init(t.TempDir()); err != nil {
+		t.Fatalf("handler.Init: %v", err)
+	}
+	sess := newFakeSession()
+	c := newTestConsumer(sess)
+
+	ack := &fakeAcknowledger{}
+	delivery := amqp.Delivery{
+		Acknowledger:  ack,
+		DeliveryTag:   1,
+		ReplyTo:       "reply.q",
+		CorrelationId: "corr-1",
+		Body:          []byte(`{"requestType":"ping","requestId":"d14eb4a0-be85-4034-a37f-969c90a9f024"}`),
+	}
+	c.handleMessage(sess, delivery)
+
+	sess.mu.Lock()
+	var env replyEnvelope
+	if err := json.Unmarshal(sess.published[0].Body, &env); err != nil {
+		sess.mu.Unlock()
+		t.Fatalf("failed to unmarshal reply: %v", err)
+	}
+	sess.mu.Unlock()
+
+	if env.RequestId != "d14eb4a0-be85-4034-a37f-969c90a9f024" {
+		t.Fatalf("expected requestId echoed, got %q", env.RequestId)
+	}
+	if env.HasError {
+		t.Fatal("expected hasError=false")
+	}
+	if env.Value == nil {
+		t.Fatal("expected value present")
 	}
 }
