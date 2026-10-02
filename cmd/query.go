@@ -65,7 +65,7 @@ func queryRunE(cmd *cobra.Command, args []string) error {
 
 	q := &handler.DynamicSQLQuery{
 		Symbol: symbol,
-		Query:  sqlStr,
+		SQL:    sqlStr,
 		Limit:  int(limit),
 	}
 

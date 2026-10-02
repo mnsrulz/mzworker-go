@@ -23,7 +23,7 @@ func init() {
 }
 
 func (h *QueryHandler) Handle(ctx context.Context, req *DynamicSQLQuery) (*QueryResponse, error) {
-	columns, rows, err := h.executor(ctx, req.Symbol, req.Query, int32(req.Limit))
+	columns, rows, err := h.executor(ctx, req.Symbol, req.SQL, int32(req.Limit))
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,7 @@ import (
 
 type DynamicSQLQuery struct {
 	Symbol string `json:"symbol"`
-	Query  string `json:"query"`
+	SQL    string `json:"sql"`
 	Limit  int    `json:"limit"`
 }
 
@@ -48,7 +48,7 @@ type QueryResponse struct {
 
 var DynamicSQLQuerySchema = z.Struct(z.Shape{
 	"Symbol": z.String().Required(),
-	"Query":  z.String().Required(),
+	"SQL":    z.String().Required(),
 	"Limit":  z.Int().Optional(),
 })
 

@@ -92,25 +92,32 @@ func (h *VolatilityHandler) buildSQL(req *VolatilityQuery) string {
 	}
 
 	return fmt.Sprintf(`
-    PIVOT (
-    SELECT quote_date as dt, option_type, underlying_close_price as close,
-    expiration_date as expiry, strike_price, round((bid_price + ask_price) / 2, 2) as mid_price,
-    implied_volatility as iv, underlying_iv30 as iv30,
-    underlying_iv30_percentile as iv30_percentile
-    FROM (
-        SELECT *, abs(delta) AS abs_delta,
-                abs(strike_price - underlying_close_price) AS price_strike_diff,
-                abs(abs(delta) - %d) AS delta_diff
-        FROM
-        base
-    )
-    %s
-    %s
-    ORDER BY dt
-    )
-    ON option_type
-    USING FIRST(strike_price) AS strike, FIRST(mid_price) AS mid, FIRST(iv) AS iv
-    GROUP BY dt, close, iv30, iv30_percentile, expiry
-    ORDER BY dt
-    `, delta, whereClause.String(), qualifyClause)
+	SELECT
+		quote_date AS dt,
+		underlying_close_price AS close,
+		underlying_iv30 AS iv30,
+		underlying_iv30_percentile AS iv_percentile,
+		expiration_date AS expiry,
+		FIRST(strike_price) FILTER (WHERE option_type = 'call') AS cs,
+		FIRST(mid_price) FILTER (WHERE option_type = 'call') AS cp,
+		FIRST(implied_volatility) FILTER (WHERE option_type = 'call') AS cv,
+		FIRST(strike_price) FILTER (WHERE option_type = 'put') AS ps,
+		FIRST(mid_price) FILTER (WHERE option_type = 'put') AS pp,
+		FIRST(implied_volatility) FILTER (WHERE option_type = 'put') AS pv
+	FROM (
+		SELECT *
+		FROM (
+			SELECT *,
+				round((bid_price + ask_price) / 2, 2) AS mid_price,
+				abs(strike_price - underlying_close_price) AS price_strike_diff,
+				abs(abs(delta) - %d) AS delta_diff
+			FROM base
+		) enriched
+		%s
+		%s
+	) filtered
+	GROUP BY quote_date, underlying_close_price, underlying_iv30,
+		underlying_iv30_percentile, expiration_date
+	ORDER BY dt
+	`, delta, whereClause.String(), qualifyClause)
 }
