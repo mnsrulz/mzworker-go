@@ -69,27 +69,48 @@ func buildExpectedMoveSQL(req *ExpectedMoveQuery) string {
                 FROM expirations
                 WHERE %s = 1
             )
+            unique_dt as (
+                SELECT DISTINCT quote_date FROM calc
+                WHERE quote_dow NOT IN (6,7)
+            )
             SELECT next_opex AS expiration, LEAD(quote_date) OVER (ORDER BY quote_date) AS opex_start
             FROM (
-                SELECT DISTINCT quote_date, expiration, next_opex
-                FROM dataset LEFT JOIN opex_cte ON quote_date = expiration
-                WHERE quote_dow NOT IN (6,7)
+                SELECT quote_date, expiration, next_opex
+                FROM unique_dt LEFT JOIN opex_cte ON quote_date = expiration
                 ORDER BY 1
             )
         ) WHERE expiration IS NOT NULL
+    ),
+    atm AS (
+        SELECT unnest(min_by(
+            struct_pack(
+                quote_date := quote_date,
+                expiration_date := expiration_date,
+                dte := dte,
+                strike_price := strike_price,
+                mid_price := mid_price,
+                underlying_close_price := underlying_close_price,
+                is_weekly_expiration := is_weekly_expiration,
+                is_monthly_expiration := is_monthly_expiration
+            ),
+            (strike_distance, strike_price, option_ticker)
+        ))
+        FROM calc
+        WHERE quote_date >= current_date - %d
+        AND %s = 1
+        GROUP BY quote_date, expiration_date, option_type
     )
     SELECT quote_date AS dt, underlying_close_price AS last_close, straddle_price, expiration_date AS expiry
     FROM (
         SELECT quote_date, expiration_date, dte, strike_price, underlying_close_price,
             round(SUM(mid_price), 2) AS straddle_price
-        FROM dataset JOIN opex ON dataset.quote_date = opex.opex_start AND dataset.expiration_date = opex.expiration
-        WHERE moneyness = 'ATM'
-        AND quote_date >= current_date - %d
+        FROM atm JOIN opex ON atm.quote_date = opex.opex_start AND atm.expiration_date = opex.expiration
+        WHERE quote_date >= current_date - %d
         AND %s = 1
         GROUP BY quote_date, dte, strike_price, expiration_date, underlying_close_price
     )
     ORDER BY quote_date
-    `, isWeeklyFilter, req.LookbackDays, isWeeklyExpirationCol)
+    `, isWeeklyFilter, req.LookbackDays, isWeeklyExpirationCol, req.LookbackDays, isWeeklyExpirationCol)
 
 	return sb.String()
 }
