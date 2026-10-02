@@ -68,7 +68,7 @@ func buildExpectedMoveSQL(req *ExpectedMoveQuery) string {
                 SELECT expiration, LEAD(expiration) OVER (ORDER BY expiration) AS next_opex
                 FROM expirations
                 WHERE %s = 1
-            )
+            ),
             unique_dt as (
                 SELECT DISTINCT quote_date FROM calc
                 WHERE quote_dow NOT IN (6,7)
