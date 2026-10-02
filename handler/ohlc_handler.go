@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/mehdihadeli/go-mediatr"
 )
@@ -23,17 +22,9 @@ func init() {
 }
 
 func (h *OHLCHandler) Handle(ctx context.Context, req *OHLCQuery) (*QueryResponse, error) {
-	sql := buildOHLCQuery(req.Symbol, req.From, req.To)
+	sql := buildOHLCQuery(req.LookbackDays)
 
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 1000
-	}
-	if limit > 10000 {
-		limit = 10000
-	}
-
-	columns, rows, err := h.executor(ctx, req.Symbol, sql, int32(limit))
+	columns, rows, err := h.executor(ctx, req.Symbol, sql, 99999)
 	if err != nil {
 		return nil, err
 	}
@@ -41,19 +32,21 @@ func (h *OHLCHandler) Handle(ctx context.Context, req *OHLCQuery) (*QueryRespons
 	return &QueryResponse{Columns: columns, Rows: rows}, nil
 }
 
-func buildOHLCQuery(symbol, from, to string) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "SELECT dt, underlying_symbol as symbol, underlying_open_price as open, underlying_high_price as high, underlying_low_price as low, underlying_close_price as close, underlying_volume as volume, underlying_iv30 as iv30 FROM T")
-
-	fmt.Fprintf(&sb, " WHERE underlying_symbol = '%s'", strings.ToUpper(symbol))
-
-	if from != "" {
-		fmt.Fprintf(&sb, " AND dt >= '%s'", from)
-	}
-	if to != "" {
-		fmt.Fprintf(&sb, " AND dt <= '%s'", to)
-	}
-
-	sb.WriteString(" ORDER BY dt")
-	return sb.String()
+func buildOHLCQuery(lookbackDays int) string {
+	return fmt.Sprintf(`
+	SELECT DISTINCT
+		strftime(CASE
+			WHEN dayofweek(CAST(dt AS DATE)) = 1 THEN CAST(dt AS DATE) - INTERVAL 3 DAY
+			ELSE CAST(dt AS DATE) - INTERVAL 1 DAY
+		END, '%%Y-%%m-%%d') AS dt,
+		underlying_open_price AS open,
+		underlying_high_price AS high,
+		underlying_low_price AS low,
+		underlying_close_price AS close,
+		underlying_iv30 AS iv30
+	FROM T
+	WHERE T.dt >= current_date - %d
+		AND dayofweek(dt) <> 6
+	ORDER BY dt
+	`, lookbackDays)
 }

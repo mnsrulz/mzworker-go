@@ -13,10 +13,8 @@ type DynamicSQLQuery struct {
 }
 
 type OHLCQuery struct {
-	Symbol string `json:"symbol"`
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Limit  int    `json:"limit"`
+	Symbol       string `json:"symbol"`
+	LookbackDays int    `json:"lookbackDays"`
 }
 
 type VolatilityQuery struct {
@@ -53,10 +51,8 @@ var DynamicSQLQuerySchema = z.Struct(z.Shape{
 })
 
 var OHLCQuerySchema = z.Struct(z.Shape{
-	"Symbol": z.String().Required(),
-	"From":   z.String().Optional(),
-	"To":     z.String().Optional(),
-	"Limit":  z.Int().Optional(),
+	"Symbol":       z.String().Required(),
+	"LookbackDays": z.Int().Required(),
 })
 
 func (r *DynamicSQLQuery) Validate() error {
@@ -69,6 +65,9 @@ func (r *DynamicSQLQuery) Validate() error {
 func (r *OHLCQuery) Validate() error {
 	if errs := OHLCQuerySchema.Validate(r); errs != nil {
 		return fmt.Errorf("validation failed: %s", z.Issues.Prettify(errs))
+	}
+	if r.LookbackDays <= 0 {
+		return fmt.Errorf("validation failed: LookbackDays must be positive")
 	}
 	return nil
 }
