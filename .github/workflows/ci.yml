@@ -170,10 +170,6 @@ jobs:
           name: mzworker-go-linux-amd64
           path: .
 
-      - name: Build info
-        id: buildinfo
-        run: echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -199,9 +195,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          build-args: |
-            BUILD_TIME=${{ steps.buildinfo.outputs.time }}
-            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta-go.outputs.tags }}
           labels: ${{ steps.meta-go.outputs.labels }}
           platforms: linux/amd64
@@ -221,9 +214,6 @@ jobs:
           context: .
           file: ./Dockerfile.rclone
           push: true
-          build-args: |
-            BUILD_TIME=${{ steps.buildinfo.outputs.time }}
-            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta-rclone.outputs.tags }}
           labels: ${{ steps.meta-rclone.outputs.labels }}
           platforms: linux/amd64

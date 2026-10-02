@@ -25,23 +25,9 @@ func init() {
 }
 
 func logBuildInfo() {
-	buildTime := BuildTime
-	if buildTime == "unknown" {
-		buildTime = os.Getenv("BUILD_TIME")
-	}
-	gitSHA := GitSHA
-	if gitSHA == "unknown" {
-		gitSHA = os.Getenv("GIT_SHA")
-	}
-	if buildTime == "" {
-		buildTime = "unknown"
-	}
-	if gitSHA == "" {
-		gitSHA = "unknown"
-	}
 	log.Printf("Version: %s", Version)
-	log.Printf("App build time: %s", buildTime)
-	log.Printf("Git commit SHA: %s", gitSHA)
+	log.Printf("App build time: %s", BuildTime)
+	log.Printf("Git commit SHA: %s", GitSHA)
 }
 
 func serveRunE(cmd *cobra.Command, args []string) error {
