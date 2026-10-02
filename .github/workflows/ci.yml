@@ -114,10 +114,8 @@ jobs:
         shell: bash
         run: |
           go build \
-            -ldflags "-X main.Version=${{ needs.version.outputs.version }}" \
-            -o mzworker-go
-          # matrix build (kept for multi-arch release)
-          go build -ldflags "-X main.Version=${{ needs.version.outputs.version }}" -o ${{ matrix.binary }} .
+            -ldflags "-X main.Version=${{ needs.version.outputs.version }} -X main.GitSHA=${{ github.sha }} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o ${{ matrix.binary }} .
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}

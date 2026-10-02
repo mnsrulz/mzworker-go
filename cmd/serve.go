@@ -25,8 +25,14 @@ func init() {
 }
 
 func logBuildInfo() {
-	buildTime := os.Getenv("BUILD_TIME")
-	gitSHA := os.Getenv("GIT_SHA")
+	buildTime := BuildTime
+	if buildTime == "unknown" {
+		buildTime = os.Getenv("BUILD_TIME")
+	}
+	gitSHA := GitSHA
+	if gitSHA == "unknown" {
+		gitSHA = os.Getenv("GIT_SHA")
+	}
 	if buildTime == "" {
 		buildTime = "unknown"
 	}

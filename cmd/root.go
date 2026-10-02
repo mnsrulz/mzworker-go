@@ -12,7 +12,11 @@ import (
 	"github.com/mnsrulz/mzworker-go/handler"
 )
 
-var Version = "dev"
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitSHA    = "unknown"
+)
 
 var RootCmd = &cobra.Command{
 	Use:     "mzworker-go",

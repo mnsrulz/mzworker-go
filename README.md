@@ -1,30 +1,36 @@
 # mzworker-go
 
-CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.
+CLI tool for querying local options/OHLC market data with DuckDB, plus an AMQP request-reply worker. Callable from opencode MCP/skills.
 
 ## Usage
 
 ```bash
-# Execute a query (default JSON output)
-mzworker-go "SELECT * FROM trades LIMIT 10"
+# Show available tables and columns
+mzworker-go --schema
 
-# Explicit query subcommand
-mzworker-go query "SELECT * FROM trades LIMIT 10"
+# Version
+mzworker-go --version
 
-# Table output
-mzworker-go "SELECT * FROM trades LIMIT 10" --format table
+# SQL query (--symbol and --data-dir are required)
+mzworker-go query "SELECT * FROM dataset LIMIT 10" --symbol AAPL --data-dir /path/to/ODATA
 
-# Raw output (nested columns/rows)
-mzworker-go "SELECT * FROM trades LIMIT 10" --format raw
+# Output format: json (default), table, raw
+mzworker-go query "SELECT * FROM T" -s AAPL --data-dir /path/to/ODATA --format table
 
-# Custom row limit
-mzworker-go "SELECT * FROM trades" --limit 500
+# Custom row limit (default 1000)
+mzworker-go query "SELECT * FROM dataset" -s AAPL --data-dir /path/to/ODATA --limit 500
 
-# Pipe SQL from stdin
-echo "SELECT 42 AS answer" | mzworker-go
+# Pipe SQL from stdin (into the query subcommand)
+echo "SELECT 42 AS answer" | mzworker-go query -s AAPL --data-dir /path/to/ODATA
 
-# AMQP daemon mode
-mzworker-go serve
+# Market-data shortcuts (--symbol and --data-dir required on all)
+mzworker-go ohlc          -s AAPL --data-dir /path/to/ODATA --lookback 30
+mzworker-go options-stat  -s AAPL --data-dir /path/to/ODATA --lookback 30
+mzworker-go volatility    -s AAPL --data-dir /path/to/ODATA --mode atm
+mzworker-go expected-move -s AAPL --data-dir /path/to/ODATA --expiry-mode weekly
+
+# AMQP daemon mode (requires env vars below)
+mzworker-go serve --concurrency 5
 ```
 
 ## Install
@@ -58,7 +64,7 @@ docker pull ghcr.io/mnsrulz/mzworker-go-rclone:latest
 
 ```bash
 make build
-# Binary at bin/mzworker-go (compat symlink bin/mzworker)
+# Binary at bin/mzworker-go, with version, git commit, and build time embedded
 ```
 
 ## Development
@@ -70,5 +76,10 @@ make lint
 
 ## Environment Variables
 
-- `AMQP_URL` — AMQP broker URL (for `serve` mode)
-- `AMQP_REQUEST_QUEUE` — AMQP queue name (for `serve` mode)
+Used by `serve` mode:
+
+- `DATA_DIR` — data directory (required)
+- `AMQP_URL` — AMQP broker URL (required)
+- `AMQP_REQUEST_QUEUE` — AMQP queue name (required)
+
+Interactive commands take the data directory via the `--data-dir` flag instead.
