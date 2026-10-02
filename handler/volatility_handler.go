@@ -118,11 +118,12 @@ func (h *VolatilityHandler) buildSQL(req *VolatilityQuery) string {
 			FIRST(iv) AS iv
 		GROUP BY dt, close, iv30, iv_percentile, expiry
 	)
-	SELECT dt, close, iv30, iv_percentile,
+	SELECT dt, close, iv30,
+		CAST(iv_percentile AS VARCHAR) AS iv_percentile,
 		C_iv AS cv,
 		P_iv AS pv,
-		C_strike AS cs,
-		P_strike AS ps,
+		CAST(C_strike AS BIGINT) AS cs,
+		CAST(P_strike AS BIGINT) AS ps,
 		C_mid AS cp,
 		P_mid AS pp,
 		expiry
