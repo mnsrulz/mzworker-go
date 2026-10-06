@@ -39,6 +39,11 @@ type ExpectedMoveQuery struct {
 	ExpiryMode   string `json:"expiryMode"`
 }
 
+type BullRunSignalQuery struct {
+	Symbol       string `json:"symbol"`
+	LookbackDays int    `json:"lookbackDays"`
+}
+
 type QueryResponse struct {
 	Columns []string `json:"columns"`
 	Rows    [][]any  `json:"rows"`
