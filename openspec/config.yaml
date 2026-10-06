@@ -1,20 +1,110 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: mzworker-go
+  Description: A Go CLI and AMQP worker for querying local market data and analytics from DuckDB-backed datasets.
+  Primary use cases:
+    - Query local options/OHLC datasets using a CLI
+    - Serve market-data queries over AMQP request/reply
+    - Expose reusable market signal commands and SQL wrappers
+    - Support local filesystem data directories with --data-dir and environment-based configuration
+
+  Tech stack:
+    - Go 1.27
+    - Cobra CLI framework
+    - DuckDB for local analytics queries
+    - RabbitMQ AMQP for request/reply worker mode
+    - JSON, table, and raw output modes for CLI commands
+    - Local data-dir workflow for symbol- and date-scoped queries
+
+  Domain context:
+    - The tool works against local option and market data stored on disk.
+    - Most commands require a symbol, a data directory, and optionally a lookback or mode.
+    - Output must be deterministic and consistent with the raw SQL results when wrappers are used.
+    - AMQP payloads and reply envelopes are part of the public contract and must be stable.
+
+  Conventions:
+    - Prefer explicit command names and flags over hidden defaults.
+    - Document all defaults, validation failures, and output formats.
+    - Preserve backward compatibility for request types and payload shapes unless a breaking change is specified.
+    - For "shortcut" commands that wrap SQL, verify parity with the underlying dynamic SQL query.
+    - Use acceptance scenarios in "WHEN/THEN/AND" format to define observable behavior.
+    - Keep specs implementation-agnostic but precise enough to validate in tests.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Keep proposals concise, focused, and solution-oriented.
+    - State the problem, value proposition, assumptions, and constraints.
+    - Include a short summary of scope and non-goals.
+    - Clearly identify any compatibility or migration concerns.
+    - If the change affects CLI usage, AMQP contracts, or SQL query parity, call that out explicitly.
+    - Prefer explicit acceptance criteria over vague implementation notes.
+
+  tasks:
+    - Break implementation into small, testable chunks.
+    - Each task should correspond to one requirement or behavior.
+    - Include validation steps for CLI output, AMQP request/response shapes, and data correctness.
+    - Prefer tasks that can be completed and verified independently.
+    - Keep tasks scoped to roughly a few hours of work when practical.
+    - If a task changes a public command or payload schema, add a compatibility check.
+
+  specs:
+    - Every spec must include a Purpose section.
+    - Use Requirement blocks with explicit SHALL language.
+    - Add concrete Scenario blocks for each primary behavior.
+    - Cover:
+        - successful execution
+        - validation failures
+        - edge-case handling
+        - default behavior
+        - short/trimmed windows
+        - parity with dynamic SQL or equivalent underlying logic
+        - error envelope semantics for AMQP requests
+    - For CLI features:
+        - specify command name
+        - required flags
+        - optional flags
+        - defaults
+        - output format behavior
+        - error mode
+    - For AMQP features:
+        - specify request type
+        - payload schema
+        - required fields
+        - validation rules
+        - reply envelope format
+        - error handling semantics
+    - For SQL-backed features:
+        - verify that wrapper commands return identical rows and columns to raw dynamic SQL for the same symbol/window
+    - Prefer scenario names that describe the real user behavior, not internal implementation names.
+    - Keep the acceptance criteria observable and testable.
+
+  api-contracts:
+    - Define exact request payload fields and reply envelopes.
+    - Distinguish between request validation failures and execution-time errors.
+    - Explicitly state whether empty strings, missing fields, zero values, negative values, and unsupported formats are rejected.
+    - If a command or AMQP request wraps a query, define how the result columns are ordered.
+    - Preserve stable field names and output schema across versions unless a breaking change is intentionally approved.
+
+  cli:
+    - Required flags should be described as required in spec needs.
+    - Defaults must be explicit.
+    - Commands must state output mode: JSON, table, raw, or default.
+    - Commands must specify whether they may read from stdin and how data-dir is passed.
+    - Validation failures should be user-facing and must not execute the underlying query.
+    - For commands with a symbol argument, document empty and invalid symbol behavior as required.
+
+  data-and-windowing:
+    - Use explicit date/window semantics for lookback logic.
+    - State whether queries include the current date boundary, previous full periods, or only data within the last N days.
+    - For weekly or rolling windows, define the exact time semantics and how rows are filtered.
+    - Ensure tests check both default behavior and explicit short lookbacks.
+    - Document the relationship between the window filter and any downstream calculation windows.
+
+  quality:
+    - Specs should be minimal but complete.
+    - Avoid implementation detail leakage unless it affects a contract.
+    - Prefer stable concepts over transient internal names.
+    - When a feature is equivalent to an existing SQL query, require parity testing.
