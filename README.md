@@ -39,9 +39,14 @@ mzworker-go serve --concurrency 5
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mnsrulz/mzworker-go/main/install.sh | bash
-# specific version
+```
+
+#### specific version
+```bash
 curl -fsSL https://raw.githubusercontent.com/mnsrulz/mzworker-go/main/install.sh | bash -s -- --version v0.3.0
-# custom prefix (no sudo)
+```
+#### custom prefix (no sudo)
+```bash
 ./install.sh --version v0.3.0 --prefix ~/.local/bin
 ```
 
