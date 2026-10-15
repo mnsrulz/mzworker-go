@@ -11,8 +11,8 @@ The system SHALL provide a `Dockerfile` that produces a minimal container image 
 
 #### Scenario: Build Go-only image from pre-built binary
 
-- **WHEN** a user runs `docker build -t mzworker .` with the `mzworker-linux-amd64` binary in the build context
-- **THEN** the image SHALL contain the binary at `/usr/local/bin/mzworker` and the entrypoint SHALL be `mzworker`
+- **WHEN** a user builds the image with the matching `mzworker-go-linux-<arch>` binary in the build context
+- **THEN** the image SHALL contain an executable binary at `/usr/local/bin/mzworker-go` and use it as the entrypoint
 
 #### Scenario: Run Go-only image
 
