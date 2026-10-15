@@ -7,7 +7,7 @@ Two container image variants built from the pre-built linux-amd64 binary: a mini
 
 ### Requirement: Go-only Docker image
 
-The system SHALL provide a `Dockerfile` that produces a minimal container image containing only the pre-built linux-amd64 mzworker binary on a distroless base.
+The system SHALL provide a `Dockerfile` that produces a minimal container image containing the pre-built mzworker binary and the C++ runtime it requires on a distroless base.
 
 #### Scenario: Build Go-only image from pre-built binary
 
