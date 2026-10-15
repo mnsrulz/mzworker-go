@@ -1,6 +1,7 @@
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/base-debian13:nonroot
 
-COPY mzworker-go-linux-amd64 /usr/local/bin/mzworker-go
-COPY mzworker-go-linux-amd64 /usr/local/bin/mzworker
+ARG TARGETARCH
 
-ENTRYPOINT ["mzworker-go"]
+COPY mzworker-go-linux-${TARGETARCH} /usr/local/bin/mzworker-go
+
+ENTRYPOINT ["/usr/local/bin/mzworker-go"]

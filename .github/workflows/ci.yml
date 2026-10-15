@@ -189,6 +189,18 @@ jobs:
             type=raw,value=latest
             type=raw,value=${{ needs.version.outputs.version }}
 
+      - name: Download linux-amd64 binary
+        uses: actions/download-artifact@v7
+        with:
+          name: mzworker-go-linux-amd64
+          path: .
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v7
+        with:
+          name: mzworker-go-linux-arm64
+          path: .
+
       - name: Build and push Go-only image
         uses: docker/build-push-action@v6
         with:
@@ -197,7 +209,7 @@ jobs:
           push: true
           tags: ${{ steps.meta-go.outputs.tags }}
           labels: ${{ steps.meta-go.outputs.labels }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
 
       - name: Docker metadata (rclone)
         id: meta-rclone
@@ -216,4 +228,4 @@ jobs:
           push: true
           tags: ${{ steps.meta-rclone.outputs.tags }}
           labels: ${{ steps.meta-rclone.outputs.labels }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
