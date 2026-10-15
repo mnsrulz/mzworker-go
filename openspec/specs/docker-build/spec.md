@@ -17,7 +17,7 @@ The system SHALL provide a `Dockerfile` that produces a minimal container image 
 #### Scenario: Run Go-only image
 
 - **WHEN** a user runs the image with `DATA_DIR`, `AMQP_URL`, and `AMQP_REQUEST_QUEUE` environment variables set
-- **THEN** the container SHALL start the AMQP consumer daemon
+- **THEN** the container SHALL execute `/usr/local/bin/mzworker-go serve` and start the AMQP consumer daemon
 
 ### Requirement: Rclone Docker image
 
