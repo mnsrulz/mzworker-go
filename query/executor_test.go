@@ -1,8 +1,49 @@
 package query
 
 import (
+	"bytes"
+	"context"
+	"log/slog"
+	"strings"
 	"testing"
 )
+
+func captureSlog(t *testing.T, level slog.Level, fn func()) string {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level})))
+	defer slog.SetDefault(prev)
+	fn()
+	return buf.String()
+}
+
+func TestExecuteQueryLogsSQLAtDebug(t *testing.T) {
+	out := captureSlog(t, slog.LevelDebug, func() {
+		if _, _, err := ExecuteQuery(context.Background(), "SELECT 1 AS x", 0); err != nil {
+			t.Fatalf("ExecuteQuery failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, `msg="executing query"`) {
+		t.Fatalf("expected executed-SQL record, got %q", out)
+	}
+	if !strings.Contains(out, `sql="SELECT 1 AS x LIMIT 1000"`) {
+		t.Fatalf("expected full SQL including limit, got %q", out)
+	}
+}
+
+func TestExecuteQueryNoSQLAtInfo(t *testing.T) {
+	out := captureSlog(t, slog.LevelInfo, func() {
+		if _, _, err := ExecuteQuery(context.Background(), "SELECT 1 AS x", 0); err != nil {
+			t.Fatalf("ExecuteQuery failed: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "executing query") {
+		t.Fatalf("expected no executed-SQL record at info, got %q", out)
+	}
+}
 
 func TestValidateQuerySelect(t *testing.T) {
 	err := ValidateQuery("SELECT * FROM 'data/options_data/symbol=AMZN/*.parquet'")

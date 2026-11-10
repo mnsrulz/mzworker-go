@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -55,12 +57,13 @@ func (c *Consumer) Start(ctx context.Context) {
 	c.done = make(chan struct{})
 	go func() {
 		defer close(c.done)
-		log.Printf("AMQP consumer started on queue: %s (concurrency: %d)", c.queueName, c.concurrency)
+		slog.Info("AMQP consumer started", "queue", c.queueName, "concurrency", c.concurrency)
 		reason := c.sessionLoop(runCtx)
 		c.drain()
 		c.sess.Close()
 		if reason != nil && runCtx.Err() == nil {
-			log.Fatalf("AMQP: connection closed terminally: %v", reason)
+			slog.Error("AMQP: connection closed terminally", "error", reason)
+			os.Exit(1)
 		}
 	}()
 }
@@ -126,6 +129,6 @@ func (c *Consumer) drain() {
 	select {
 	case <-done:
 	case <-time.After(c.drainTimeout):
-		log.Printf("AMQP: timed out after %s waiting for in-flight handlers", c.drainTimeout)
+		slog.Warn("AMQP: timed out waiting for in-flight handlers", "timeout", c.drainTimeout)
 	}
 }

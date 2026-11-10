@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
@@ -80,7 +80,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 		RequestId   string `json:"requestId"`
 	}
 	if err := json.Unmarshal(msg.Body, &envelope); err != nil {
-		log.Printf("AMQP: failed to parse envelope: %v", err)
+		slog.Error("AMQP: failed to parse envelope", "error", err)
 		if msg.ReplyTo != "" {
 			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, "")
 		}
@@ -90,7 +90,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 
 	factory, ok := handler.GetRequestFactory(envelope.RequestType)
 	if !ok {
-		log.Printf("AMQP: unknown request type: %s", envelope.RequestType)
+		slog.Warn("AMQP: unknown request type", "request_type", envelope.RequestType)
 		if msg.ReplyTo != "" {
 			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		}
@@ -100,7 +100,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 
 	request, err := factory(msg.Body)
 	if err != nil {
-		log.Printf("AMQP: failed to create request: %v", err)
+		slog.Error("AMQP: failed to create request", "error", err)
 		if msg.ReplyTo != "" {
 			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		}
@@ -110,7 +110,7 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 
 	resp, err := handler.Dispatch(context.Background(), request)
 	if err != nil {
-		log.Printf("AMQP: dispatch failed: %v", err)
+		slog.Error("AMQP: dispatch failed", "error", err)
 		if msg.ReplyTo != "" {
 			c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		}
@@ -119,33 +119,33 @@ func (c *Consumer) handleMessage(sess session, msg amqp.Delivery) {
 	}
 
 	if msg.ReplyTo == "" {
-		log.Printf("AMQP: no reply_to set, dropping response")
+		slog.Warn("AMQP: no reply_to set, dropping response")
 		_ = msg.Ack(false)
 		return
 	}
 
 	amqpResp, err := toAmqpResponse(envelope.RequestId, resp)
 	if err != nil {
-		log.Printf("AMQP: failed to convert response: %v", err)
+		slog.Error("AMQP: failed to convert response", "error", err)
 		c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		_ = msg.Ack(false)
 		return
 	}
 	body, err := json.Marshal(amqpResp)
 	if err != nil {
-		log.Printf("AMQP: failed to marshal response: %v", err)
+		slog.Error("AMQP: failed to marshal response", "error", err)
 		c.publishErrorReply(sess, msg.ReplyTo, msg.CorrelationId, envelope.RequestId)
 		_ = msg.Ack(false)
 		return
 	}
 
 	if err := c.publishReply(sess, msg.ReplyTo, msg.CorrelationId, body); err != nil {
-		log.Printf("AMQP: failed to publish response: %v; requeueing request", err)
+		slog.Error("AMQP: failed to publish response; requeueing request", "error", err)
 		_ = msg.Nack(false, true)
 		return
 	}
 
-	log.Printf("AMQP: response sent (%T)", resp)
+	slog.Info("AMQP: response sent", "response_type", fmt.Sprintf("%T", resp))
 	_ = msg.Ack(false)
 }
 
@@ -165,11 +165,11 @@ func (c *Consumer) publishReply(s session, replyTo, correlationID string, body [
 func (c *Consumer) publishErrorReply(s session, replyTo, correlationID, requestId string) {
 	body, err := json.Marshal(replyEnvelope{RequestId: requestId, HasError: true, Value: struct{}{}})
 	if err != nil {
-		log.Printf("AMQP: failed to marshal error reply: %v", err)
+		slog.Error("AMQP: failed to marshal error reply", "error", err)
 		return
 	}
 	if err := c.publishReply(s, replyTo, correlationID, body); err != nil {
-		log.Printf("AMQP: failed to publish error response: %v", err)
+		slog.Error("AMQP: failed to publish error response", "error", err)
 	}
 }
 

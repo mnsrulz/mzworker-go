@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/mnsrulz/mzworker-go/cmd"
 )
@@ -17,6 +18,7 @@ func main() {
 	cmd.BuildTime = BuildTime
 	cmd.GitSHA = GitSHA
 	if err := cmd.Execute(); err != nil {
-		log.Fatal(err)
+		slog.Error("fatal", "error", err)
+		os.Exit(1)
 	}
 }

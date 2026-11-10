@@ -2,7 +2,8 @@ package handler
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 
 	"github.com/mehdihadeli/go-mediatr"
 )
@@ -14,7 +15,7 @@ type Validatable interface {
 type ValidationBehavior struct{}
 
 func (v *ValidationBehavior) Handle(ctx context.Context, request any, next mediatr.RequestHandlerFunc) (any, error) {
-	log.Printf("Pipeline: validating request %T", request)
+	slog.Info(fmt.Sprintf("Pipeline: validating request %T", request))
 	if validatable, ok := request.(Validatable); ok {
 		if err := validatable.Validate(); err != nil {
 			return nil, err

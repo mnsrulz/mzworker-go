@@ -20,6 +20,9 @@ mzworker-go query "SELECT * FROM T" -s AAPL --data-dir /path/to/ODATA --format t
 # Custom row limit (default 1000)
 mzworker-go query "SELECT * FROM dataset" -s AAPL --data-dir /path/to/ODATA --limit 500
 
+# Verbose logging: print the executed SQL to stderr at debug level
+mzworker-go query "SELECT * FROM dataset LIMIT 10" -s AAPL --data-dir /path/to/ODATA -v
+
 # Pipe SQL from stdin (into the query subcommand)
 echo "SELECT 42 AS answer" | mzworker-go query -s AAPL --data-dir /path/to/ODATA
 
@@ -86,5 +89,8 @@ Used by `serve` mode:
 - `DATA_DIR` — data directory (required)
 - `AMQP_URL` — AMQP broker URL (required)
 - `AMQP_REQUEST_QUEUE` — AMQP queue name (required)
+- `LOG_LEVEL` — logging level: `debug`, `info`, `warn`, or `error` (default `info`). `debug` also logs the SQL executed against DuckDB.
+
+`LOG_LEVEL` applies to both `serve` and the CLI; the persistent `-v` / `--verbose` flag is shorthand for `debug`.
 
 Interactive commands take the data directory via the `--data-dir` flag instead.

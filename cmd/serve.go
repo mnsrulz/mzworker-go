@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,9 +25,9 @@ func init() {
 }
 
 func logBuildInfo() {
-	log.Printf("Version: %s", Version)
-	log.Printf("App build time: %s", BuildTime)
-	log.Printf("Git commit SHA: %s", GitSHA)
+	slog.Info("Version", "version", Version)
+	slog.Info("App build time", "build_time", BuildTime)
+	slog.Info("Git commit SHA", "git_sha", GitSHA)
 }
 
 func serveRunE(cmd *cobra.Command, args []string) error {
@@ -56,13 +56,13 @@ func serveRunE(cmd *cobra.Command, args []string) error {
 	}
 	consumer.Start(cmd.Context())
 
-	log.Println("AMQP consumer running. Press Ctrl+C to stop.")
+	slog.Info("AMQP consumer running. Press Ctrl+C to stop.")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down...")
+	slog.Info("Shutting down...")
 	consumer.Stop()
 	return nil
 }

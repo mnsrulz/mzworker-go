@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -14,9 +14,9 @@ import (
 func captureLogs(t *testing.T, fn func()) string {
 	t.Helper()
 	var buf bytes.Buffer
-	prev := log.Writer()
-	log.SetOutput(&buf)
-	defer log.SetOutput(prev)
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(prev)
 	fn()
 	return buf.String()
 }

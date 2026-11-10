@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -19,15 +20,47 @@ var (
 )
 
 var RootCmd = &cobra.Command{
-	Use:     "mzworker-go",
-	Version: Version,
-	Short:   "CLI tool for querying DuckDB with options data",
-	Long:    "CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.",
-	RunE:    rootRunE,
+	Use:               "mzworker-go",
+	Version:           Version,
+	Short:             "CLI tool for querying DuckDB with options data",
+	Long:              "CLI tool for querying DuckDB with SQL. Callable from opencode MCP/skills.",
+	RunE:              rootRunE,
+	PersistentPreRunE: configureLogging,
 }
 
 func init() {
 	RootCmd.Flags().Bool("schema", false, "Show available tables and columns")
+	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable debug logging (e.g. executed SQL)")
+}
+
+func configureLogging(cmd *cobra.Command, _ []string) error {
+	level, ok := parseLogLevel(os.Getenv("LOG_LEVEL"))
+	if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
+		level = slog.LevelDebug
+	}
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	if !ok {
+		slog.Warn("invalid LOG_LEVEL; defaulting to info", "value", os.Getenv("LOG_LEVEL"))
+	}
+	return nil
+}
+
+func parseLogLevel(raw string) (slog.Level, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return slog.LevelInfo, true
+	case "debug":
+		return slog.LevelDebug, true
+	case "info":
+		return slog.LevelInfo, true
+	case "warn", "warning":
+		return slog.LevelWarn, true
+	case "error":
+		return slog.LevelError, true
+	default:
+		return slog.LevelInfo, false
+	}
 }
 
 func rootRunE(cmd *cobra.Command, args []string) error {

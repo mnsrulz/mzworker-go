@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -72,6 +73,8 @@ func ExecuteQuery(ctx context.Context, sqlStr string, limit int32) ([]string, []
 		return nil, nil, &QueryError{Code: "EXECUTION_ERROR", Message: fmt.Sprintf("Failed to open DuckDB: %v", err)}
 	}
 	defer func() { _ = db.Close() }()
+
+	slog.Debug("executing query", "sql", sqlWithLimit)
 
 	rows, err := db.QueryContext(ctx, sqlWithLimit)
 	if err != nil {
