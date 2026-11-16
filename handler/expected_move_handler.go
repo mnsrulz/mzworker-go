@@ -88,7 +88,7 @@ func buildExpectedMoveSQL(req *ExpectedMoveQuery) string {
                 expiration_date := expiration_date,
                 dte := dte,
                 strike_price := strike_price,
-                mid_price := mid_price,
+                theoretical_price := theoretical_price,
                 underlying_close_price := underlying_close_price,
                 is_weekly_expiration := is_weekly_expiration,
                 is_monthly_expiration := is_monthly_expiration
@@ -103,7 +103,7 @@ func buildExpectedMoveSQL(req *ExpectedMoveQuery) string {
     SELECT quote_date AS dt, underlying_close_price AS last_close, straddle_price, expiration_date AS expiry
     FROM (
         SELECT quote_date, expiration_date, dte, strike_price, underlying_close_price,
-            round(SUM(mid_price), 2) AS straddle_price
+            round(SUM(theoretical_price), 2) AS straddle_price
         FROM atm JOIN opex ON atm.quote_date = opex.opex_start AND atm.expiration_date = opex.expiration
         WHERE quote_date >= current_date - %d
         AND %s = 1
