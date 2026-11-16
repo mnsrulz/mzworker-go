@@ -18,7 +18,7 @@ env:
 jobs:
   version:
     name: Compute version
-    runs-on: ubuntu-latest
+    runs-on: &ubuntu-runner ubuntu-26.04
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -64,13 +64,13 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            runs-on: ubuntu-latest
+            runs-on: *ubuntu-runner
             goos: linux
             goarch: amd64
             binary: mzworker-go-linux-amd64
 
           - name: linux-arm64
-            runs-on: ubuntu-latest
+            runs-on: *ubuntu-runner
             goos: linux
             goarch: arm64
             binary: mzworker-go-linux-arm64
@@ -131,7 +131,7 @@ jobs:
   release:
     name: Create Release
     needs: [version, build]
-    runs-on: ubuntu-latest
+    runs-on: *ubuntu-runner
 
     steps:
       - uses: actions/checkout@v7
@@ -158,17 +158,11 @@ jobs:
   docker-publish:
     name: Publish Docker images
     needs: [version, build]
-    runs-on: ubuntu-latest
+    runs-on: *ubuntu-runner
     if: github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Download linux-amd64 binary
-        uses: actions/download-artifact@v7
-        with:
-          name: mzworker-go-linux-amd64
-          path: .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -200,6 +194,25 @@ jobs:
         with:
           name: mzworker-go-linux-arm64
           path: .
+
+      # Guard against the build environment outrunning the runtime images.
+      # The Ubuntu 26.04 runner links against glibc 2.43, which is the newest
+      # glibc both runtime images provide (ubuntu:26.04 for the rclone image).
+      # If a binary needs a newer symbol, fail here instead of shipping an
+      # image that dies with "version `GLIBC_2.xx' not found" at startup.
+      - name: Verify glibc compatibility
+        shell: bash
+        run: |
+          runtime_glibc=GLIBC_2.43
+          for arch in amd64 arm64; do
+            bin="mzworker-go-linux-$arch"
+            max=$(strings "$bin" | grep -o 'GLIBC_2\.[0-9]*' | sort -Vu | tail -1 || true)
+            if [[ -n "$max" && "$(printf '%s\n' "$runtime_glibc" "$max" | sort -V | tail -1)" != "$runtime_glibc" ]]; then
+              echo "::error::$bin requires $max but the runtime images provide $runtime_glibc"
+              exit 1
+            fi
+            echo "$bin max GLIBC symbol: ${max:-none} (runtime provides $runtime_glibc)"
+          done
 
       - name: Build and push Go-only image
         uses: docker/build-push-action@v6

@@ -1,6 +1,6 @@
 FROM rclone/rclone:v1.72-stable AS rclone
 
-FROM debian:trixie-slim
+FROM ubuntu:26.04
 
 ARG TARGETARCH
 
